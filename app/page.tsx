@@ -1,65 +1,169 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+type Card = {
+  suit: string;
+  value: string;
+};
+
+type GameStatus =
+  | "waiting"
+  | "playing"
+  | "player_blackjack"
+  | "player_bust"
+  | "dealer_bust"
+  | "player_win"
+  | "dealer_win"
+  | "push";
 
 export default function Home() {
+  const [playerHand, setPlayerHand] = useState<Card[]>([]);
+  const [dealerHand, setDealerHand] = useState<Card[]>([]);
+  const [playerValue, setPlayerValue] = useState<number | null>(null);
+  const [dealerValue, setDealerValue] = useState<number | null>(null);
+  const [gameStatus, setGameStatus] = useState<GameStatus>("waiting");
+
+  async function play(action?: "deal" | "hit" | "stand") {
+    if (action === "hit" && gameStatus !== "playing") return;
+    if (action === "stand" && gameStatus !== "playing") return;
+
+    const res = await fetch("/api/blackjack", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerHand,
+        dealerHand,
+        action,
+      }),
+    });
+
+    const data = await res.json();
+
+    setPlayerHand(data.playerHand);
+    setDealerHand(data.dealerHand);
+    setPlayerValue(data.playerValue);
+    setDealerValue(data.dealerValue);
+
+    if (action === "deal") {
+      setGameStatus("playing");
+      if (data.playerValue === 21) {
+        setGameStatus("player_blackjack");
+      }
+    } else if (action === "hit") {
+      if (data.playerValue > 21) {
+        setGameStatus("player_bust");
+      }
+    } else if (action === "stand") {
+      if (data.dealerValue > 21) {
+        setGameStatus("dealer_bust");
+      } else if (data.dealerValue > data.playerValue) {
+        setGameStatus("dealer_win");
+      } else if (data.dealerValue < data.playerValue) {
+        setGameStatus("player_win");
+      } else {
+        setGameStatus("push");
+      }
+    }
+  }
+
+  function getStatusMessage(): string {
+    switch (gameStatus) {
+      case "waiting":
+        return "Klik op Deal om te beginnen.";
+      case "playing":
+        return "Speel je zet.";
+      case "player_blackjack":
+        return "Blackjack! Je wint!";
+      case "player_bust":
+        return "Bust! Dealer wint.";
+      case "dealer_bust":
+        return "Dealer bust! Je wint!";
+      case "player_win":
+        return "Je wint!";
+      case "dealer_win":
+        return "Dealer wint.";
+      case "push":
+        return "Gelijkspel.";
+      default:
+        return "";
+    }
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="w-screen h-screen bg-gray flex items-center justify-center">
+      <div className="bg-zinc-900 text-white rounded-xl p-6 flex flex-col items-center gap-6 width-50vw max-w-md">
+        <h1 className="text-3xl font-bold text-center">Blackjack</h1>
+
+        <p className="text-lg text-center">{getStatusMessage()}</p>
+
+        <div className="flex gap-4">
+          <button
+            onClick={() => play("deal")}
+            disabled={gameStatus === "playing"}
+            className="rounded bg-black text-white px-6 py-3 disabled:opacity-50"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Deal
+          </button>
+          <button
+            onClick={() => play("hit")}
+            disabled={gameStatus !== "playing"}
+            className="rounded bg-blue-600 text-white px-6 py-3 disabled:opacity-50"
           >
-            Documentation
-          </a>
+            Hit
+          </button>
+          <button
+            onClick={() => play("stand")}
+            disabled={gameStatus !== "playing"}
+            className="rounded bg-green-600 text-white px-6 py-3 disabled:opacity-50"
+          >
+            Stand
+          </button>
         </div>
-      </main>
-    </div>
+
+        <div className="flex flex-col gap-4 w-full items-center">
+          <div>
+            <h2 className="font-semibold text-center mb-2">
+              Player ({playerValue ?? 0})
+            </h2>
+            <div className="flex gap-4 justify-center">
+              {playerHand.map((card, i) => (
+                <div
+                  key={i}
+                  className="bg-white text-black rounded-lg p-5 shadow-lg flex items-center justify-center text-xl"
+                >
+                  {card.value}
+                  {card.suit}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="font-semibold text-center mb-2">
+              Dealer ({gameStatus === "playing" ? "?" : dealerValue ?? 0})
+            </h2>
+            <div className="flex gap-4 justify-center">
+              {dealerHand
+                .slice(0, gameStatus === "playing" ? 1 : dealerHand.length)
+                .map((card, i) => (
+                  <div
+                    key={i}
+                    className="bg-white text-black rounded-lg p-5 shadow-lg flex items-center justify-center text-xl"
+                  >
+                    {card.value}
+                    {card.suit}
+                  </div>
+                ))}
+              {gameStatus === "playing" && dealerHand.length > 1 && (
+                <div className="bg-white text-black rounded-lg p-5 shadow-lg flex items-center justify-center text-xl">
+                  🂠
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }
